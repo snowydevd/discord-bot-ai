@@ -40,6 +40,10 @@ client.once('ready', () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return; // Ignorar mensajes de otros bots
 
+    if(message.content.startsWith("ai")) {
+        message.reply("Hola, soy un bot de IA, puedes hablarme con ``ia <mensaje>``")
+    }
+
     if (message.content.startsWith('ia')) {
         console.log("IA command received");
         // Store the loading message reference
