@@ -77,4 +77,6 @@ client.on('messageCreate', async (message) => {
 });
 
 // Iniciar el bot
-client.login(discordToken);
+client.login(discordToken).catch(err => {
+    console.error("Error al iniciar sesión con el token:", err);
+  });
