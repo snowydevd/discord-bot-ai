@@ -1,82 +1,139 @@
 require("dotenv").config();
+const { EmbedBuilder } = require("discord.js");
 const discordToken = process.env.DISCORD_TOKEN;
 const geminiApiKey = process.env.GEMINI_API_KEY;
 
-const {Client, GatewayIntentBits} = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(geminiApiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-// Create a chat session
-const chat = model.startChat({
-    history: [
-        {
-            role: "user",
-            parts: [{ text: "Solo tienes permitido hablar en español, da respuestas concretas y simples. Tienes permitido usar emojis de discord, osea :nombre_emoji:, no hace falta que los uses en todos los mensajes pero si puedes usarlos" }]
-        },
-       
-    ]
-});
-
-
 // Crear cliente de Discord con intents necesarios
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds, // Para detectar eventos en servidores (guilds)
-        GatewayIntentBits.GuildMessages, // Para recibir mensajes de los servidores
-        GatewayIntentBits.MessageContent, // Para leer el contenido de los mensajes
-        GatewayIntentBits.GuildMembers, // Para acceder a la lista de miembros
-    ],
+  intents: [
+    GatewayIntentBits.Guilds, // Para detectar eventos en servidores (guilds)
+    GatewayIntentBits.GuildMessages, // Para recibir mensajes de los servidores
+    GatewayIntentBits.MessageContent, // Para leer el contenido de los mensajes
+    GatewayIntentBits.GuildMembers, // Para acceder a la lista de miembros
+  ],
 });
-
 
 // Responder cuando el bot esté listo
-client.once('ready', () => {
-    console.log(`Bot conectado como ${client.user.tag}`);
+client.once("ready", () => {
+  console.log(`Bot conectado como ${client.user.tag}`);
 });
 
-// Manejar mensajes en el canal
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return; // Ignorar mensajes de otros bots
+// // Manejar mensajes en el canal
+// client.on("messageCreate", async (message) => {
+//   if (message.author.bot) return; // Ignorar mensajes de otros bots
 
-    if(message.content.startsWith("ai")) {
-        message.reply("Hola, soy un bot de IA, puedes hablarme con ``ia <mensaje>``")
-    }
+//   const messageDoesntHaveBody = message.content.trim() === "";
+//   const messageHasBody = message.content.trim() !== "";
 
-    if (message.content.startsWith('ia')) {
-        console.log("IA command received");
-        // Store the loading message reference
-        const loadingMsg = await message.reply("Generando respuesta...");
-        const userMessage = message.content.replace('ia', '').trim();
+//   if (message.content.startsWith("ia") && messageDoesntHaveBody) {
+//     message.reply(
+//       "Hola, soy un bot de IA, puedes hablarme con ``ia <mensaje>``"
+//     );
+//   }
 
-        try {
-            const result = await chat.sendMessage(userMessage);
-            const reply = result.response.text();
-            
-            if (reply.length > 2000) {
-                const chunks = reply.match(/[\s\S]{1,2000}/g) || [];
-                // Delete the loading message before sending the chunks
-                await loadingMsg.delete();
-                for (const chunk of chunks) {
-                    await message.reply(chunk);
-                }
-            } else {
-                // Delete the loading message before sending the response
-                await loadingMsg.delete();
-                await message.reply(reply);
-            }
-        } catch (error) {
-            // Delete the loading message in case of error too
-            await loadingMsg.delete();
-            message.reply("Algo salio mal, intentalo de nuevo")
-            console.error('Error con la API de Gemini:', error);
-            message.reply('Hubo un problema al conectar con la IA.');
+//   if (message.content.startsWith("ia") && messageHasBody) {
+//     console.log("IA command received");
+//     // Store the loading message reference
+//     const loadingMsg = await message.reply("Generando respuesta...");
+//     const userMessage = message.content.replace("ia", "").trim();
+
+//     try {
+//       const result = await chat.sendMessage(userMessage);
+//       const reply = result.response.text();
+
+//       if (reply.length > 2000) {
+//         const chunks = reply.match(/[\s\S]{1,2000}/g) || [];
+//         // Delete the loading message before sending the chunks
+//         await loadingMsg.delete();
+//         for (const chunk of chunks) {
+//           await message.reply(chunk);
+//         }
+//       } else {
+//         // Delete the loading message before sending the response
+//         await loadingMsg.delete();
+//         await message.reply(reply);
+//       }
+//     } catch (error) {
+//       // Delete the loading message in case of error too
+//       await loadingMsg.delete();
+//       message.reply("Algo salio mal, intentalo de nuevo");
+//       console.error("Error con la API de Gemini:", error);
+//       message.reply("Hubo un problema al conectar con la IA.");
+//     }
+//   }
+// });
+
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isCommand()) return;
+
+  const { commandName, options } = interaction;
+
+  if (commandName === "ping") {
+    await interaction.reply("Pong!");
+  } else if (commandName === "ai") {
+    const userMessage = options.getString("message");
+    await interaction.reply("Generating response...");
+
+    // Create a chat session
+    const chat = model.startChat({
+      history: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: "puedes generar respuestas con un largo maximo de 2000 caracteres.",
+            },
+          ],
+        },
+      ],
+    });
+
+    try {
+      const result = await chat.sendMessage(userMessage);
+      const reply = result.response.text();
+
+      const embed = new EmbedBuilder()
+        .setColor(0x0099ff) // Set the embed color
+        .setTitle("GeminiAIBot")
+        .setDescription("Gemini AI")
+        .addFields(
+          { name: "Prompt", value: userMessage },
+          {
+            name: "Respuesta",
+            value: reply.length > 1024 ? reply.slice(0, 1021) + "..." : reply,
+          }
+        )
+        .setTimestamp()
+
+        .setThumbnail()
+        .setFooter({
+          text: "Generated by Gemini AI APi",
+          iconURL:
+            "https://registry.npmmirror.com/@lobehub/icons-static-png/latest/files/light/gemini-color.png",
+        });
+
+      if (reply.length > 2000) {
+        const chunks = reply.match(/[\s\S]{1,2000}/g) || [];
+        for (const chunk of chunks) {
+          await interaction.followUp(chunk);
         }
+      } else {
+        await interaction.editReply({ embeds: [embed] });
+      }
+    } catch (error) {
+      console.error(error);
+      await interaction.editReply("Hubo un error al procesar tu mensaje.");
     }
+  }
 });
 
 // Iniciar el bot
-client.login(discordToken).catch(err => {
-    console.error("Error al iniciar sesión con el token:", err);
-  });
+client.login(discordToken).catch((err) => {
+  console.error("Error al iniciar sesión con el token:", err);
+});
